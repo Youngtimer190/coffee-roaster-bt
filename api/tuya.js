@@ -1,62 +1,24 @@
-// Tuya API - uproszczony podpis
+// Tuya API z nowymi kluczami
 import crypto from 'crypto';
 
-const CLIENT_ID = 'nwqkpdpm4a7yga445fsm';
-const CLIENT_SECRET = '8c50b1ece0fb47acb06be00f2a731059';
+const CLIENT_ID = 'ytqmtsavtqt34prahhkc';
+const CLIENT_SECRET = 'd055e6e7a4f04c08be67b00811ba6dc6';
 const DEVICE_ID = 'bf64bef5qnf76lbz';
+const BASE_URL = 'https://openapi.tuyaus.com';
 
-const ENDPOINTS = [
-  'https://openapi.tuyaeu.com',
-  'https://openapi.tuyaus.com'
-];
-
-// Prosty podpis Tuya (hex uppercase)
-function sign(clientId, secret, t, token = '') {
-  // String: clientId + token + t
-  const str = token ? `${clientId}${token}${t}` : `${clientId}${t}`;
-  return crypto.createHmac('sha256', secret).update(str).digest('hex').toUpperCase();
+// Podpis wg dokumentacji Tuya v1.0
+function createSign(t) {
+  const str = CLIENT_ID + t;
+  const hmac = crypto.createHmac('sha256', CLIENT_SECRET);
+  hmac.update(str);
+  return hmac.digest('hex').toUpperCase();
 }
 
-async function getToken(baseUrl) {
-  const t = Date.now().toString();
-  const s = sign(CLIENT_ID, CLIENT_SECRET, t);
-
-  console.log(`\n=== ${baseUrl} ===`);
-  console.log('t:', t);
-  console.log('sign string:', CLIENT_ID + t);
-  console.log('sign:', s);
-
-  const url = `${baseUrl}/v1.0/token?grant_type=1`;
-  const resp = await fetch(url, {
-    headers: {
-      'client_id': CLIENT_ID,
-      'sign': s,
-      't': t,
-      'sign_method': 'HMAC-SHA256'
-    }
-  });
-
-  const data = await resp.json();
-  console.log('Response:', JSON.stringify(data));
-  return data;
-}
-
-async function getDevice(baseUrl, token) {
-  const t = Date.now().toString();
-  const s = sign(CLIENT_ID, CLIENT_SECRET, t, token);
-
-  const url = `${baseUrl}/v1.0/devices/${DEVICE_ID}/status`;
-  const resp = await fetch(url, {
-    headers: {
-      'client_id': CLIENT_ID,
-      'sign': s,
-      't': t,
-      'sign_method': 'HMAC-SHA256',
-      'access_token': token
-    }
-  });
-
-  return resp.json();
+function createSignWithToken(t, token) {
+  const str = CLIENT_ID + token + t;
+  const hmac = crypto.createHmac('sha256', CLIENT_SECRET);
+  hmac.update(str);
+  return hmac.digest('hex').toUpperCase();
 }
 
 export default async function handler(req, res) {
@@ -64,42 +26,96 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  let lastError = 'Brak połączenia';
+  try {
+    // Krok 1: Pobierz token
+    const t = Date.now().toString();
+    const sign = createSign(t);
 
-  for (const ep of ENDPOINTS) {
-    try {
-      const tr = await getToken(ep);
+    console.log('=== Token Request ===');
+    console.log('clientId:', CLIENT_ID);
+    console.log('t:', t);
+    console.log('stringToSign:', CLIENT_ID + t);
+    console.log('sign:', sign);
 
-      if (tr.success && tr.result?.access_token) {
-        console.log('Token OK!');
-        const dr = await getDevice(ep, tr.result.access_token);
-
-        if (dr.success) {
-          let temp = null;
-          (dr.result || []).forEach(i => {
-            console.log('Prop:', i.code, '=', i.value);
-            if (['temp_current', 'temperature', 'temp', 'va_temperature'].includes(i.code)) {
-              temp = parseFloat(i.value);
-              if (temp > 200) temp = temp / 10;
-            }
-          });
-
-          return res.json({
-            success: true,
-            temperature: temp,
-            raw: dr.result,
-            endpoint: ep
-          });
-        }
-        lastError = dr.msg || 'Device error';
-      } else {
-        lastError = tr.msg || 'Token error';
+    const tokenResp = await fetch(`${BASE_URL}/v1.0/token?grant_type=1`, {
+      method: 'GET',
+      headers: {
+        'client_id': CLIENT_ID,
+        'sign': sign,
+        't': t,
+        'sign_method': 'HMAC-SHA256'
       }
-    } catch (e) {
-      lastError = e.message;
-      console.error('Error:', e);
-    }
-  }
+    });
 
-  res.status(500).json({ success: false, error: lastError });
+    const tokenData = await tokenResp.json();
+    console.log('Token response:', JSON.stringify(tokenData));
+
+    if (!tokenData.success) {
+      return res.status(500).json({
+        success: false,
+        error: `Token: ${tokenData.msg}`,
+        debug: { clientId: CLIENT_ID, t, sign }
+      });
+    }
+
+    const accessToken = tokenData.result.access_token;
+
+    // Krok 2: Pobierz status urządzenia
+    const t2 = Date.now().toString();
+    const sign2 = createSignWithToken(t2, accessToken);
+
+    console.log('=== Device Request ===');
+    console.log('access_token:', accessToken);
+    console.log('t2:', t2);
+    console.log('sign2:', sign2);
+
+    const deviceResp = await fetch(`${BASE_URL}/v1.0/devices/${DEVICE_ID}/status`, {
+      method: 'GET',
+      headers: {
+        'client_id': CLIENT_ID,
+        'sign': sign2,
+        't': t2,
+        'sign_method': 'HMAC-SHA256',
+        'access_token': accessToken
+      }
+    });
+
+    const deviceData = await deviceResp.json();
+    console.log('Device response:', JSON.stringify(deviceData));
+
+    if (!deviceData.success) {
+      return res.status(500).json({
+        success: false,
+        error: `Device: ${deviceData.msg}`
+      });
+    }
+
+    // Znajdź temperaturę
+    let temperature = null;
+    const raw = deviceData.result || [];
+
+    for (const item of raw) {
+      console.log('Property:', item.code, '=', item.value);
+      if (['temp_current', 'temperature', 'temp', 'va_temperature', 'temp_current_f'].includes(item.code)) {
+        let val = parseFloat(item.value);
+        if (!isNaN(val)) {
+          temperature = val > 200 ? val / 10 : val;
+        }
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      temperature,
+      raw,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 }
