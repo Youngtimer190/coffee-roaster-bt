@@ -948,6 +948,8 @@ async saveProfile() {
 const resetBtn = document.getElementById('stopwatchReset');
 if (toggleBtn) toggleBtn.addEventListener('click', () => { this.startIosWakeLockDirectly(); this.toggleStopwatch(); });
 if (resetBtn) resetBtn.addEventListener('click', () => this.resetStopwatch());
+this.setupIosWakeLock();
+this.setupStickyStopwatch();
 }
 
 toggleStopwatch() {
