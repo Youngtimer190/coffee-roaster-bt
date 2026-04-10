@@ -2240,11 +2240,13 @@ select {
 
 /* iOS PWA safe areas - env() returns 0 in standalone, but notch exists */
 .modal-header {
-padding-top: 65px;
+padding-top: 80px;
+position: relative;
+top: auto;
 }
 
 .stopwatch.is-sticky {
-padding-top: 100px;
+padding-top: 120px;
 }
 
 .modal-content {
