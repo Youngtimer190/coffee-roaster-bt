@@ -1,4 +1,4 @@
-// Tuya API z nowymi kluczami
+// Tuya API - poprawny podpis wg oficjalnej dokumentacji
 import crypto from 'crypto';
 
 const CLIENT_ID = 'ytqmtsavtqt34prahhkc';
@@ -6,19 +6,20 @@ const CLIENT_SECRET = 'd055e6e7a4f04c08be67b00811ba6dc6';
 const DEVICE_ID = 'bf64bef5qnf76lbz';
 const BASE_URL = 'https://openapi.tuyaeu.com';
 
-// Podpis wg dokumentacji Tuya v1.0
-function createSign(t) {
-  const str = CLIENT_ID + t;
-  const hmac = crypto.createHmac('sha256', CLIENT_SECRET);
-  hmac.update(str);
-  return hmac.digest('hex').toUpperCase();
-}
+// Poprawny podpis Tuya (Base64)
+function createSign(method, path, body, t, token = '') {
+  // SHA256 hash body (pusty dla GET)
+  const bodySha256 = crypto.createHash('sha256').update(body || '').digest('hex');
 
-function createSignWithToken(t, token) {
-  const str = CLIENT_ID + token + t;
+  // String do podpisu
+  const stringToSign = `${method}\n${bodySha256}\n${path}\n${t}\n${token}`;
+
+  console.log('String to sign:', JSON.stringify(stringToSign));
+
+  // HMAC-SHA256 -> Base64
   const hmac = crypto.createHmac('sha256', CLIENT_SECRET);
-  hmac.update(str);
-  return hmac.digest('hex').toUpperCase();
+  hmac.update(stringToSign);
+  return hmac.digest('base64');
 }
 
 export default async function handler(req, res) {
@@ -27,17 +28,18 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    // Krok 1: Pobierz token
+    // Pobierz token
     const t = Date.now().toString();
-    const sign = createSign(t);
+    const path = '/v1.0/token?grant_type=1';
+    const sign = createSign('GET', path, '', t);
 
     console.log('=== Token Request ===');
-    console.log('clientId:', CLIENT_ID);
+    console.log('client_id:', CLIENT_ID);
     console.log('t:', t);
-    console.log('stringToSign:', CLIENT_ID + t);
+    console.log('path:', path);
     console.log('sign:', sign);
 
-    const tokenResp = await fetch(`${BASE_URL}/v1.0/token?grant_type=1`, {
+    const tokenResp = await fetch(`${BASE_URL}${path}`, {
       method: 'GET',
       headers: {
         'client_id': CLIENT_ID,
@@ -53,23 +55,23 @@ export default async function handler(req, res) {
     if (!tokenData.success) {
       return res.status(500).json({
         success: false,
-        error: `Token: ${tokenData.msg}`,
-        debug: { clientId: CLIENT_ID, t, sign }
+        error: `Token: ${tokenData.msg} (${tokenData.code})`,
+        debug: { t, sign }
       });
     }
 
     const accessToken = tokenData.result.access_token;
 
-    // Krok 2: Pobierz status urządzenia
+    // Pobierz status urządzenia
     const t2 = Date.now().toString();
-    const sign2 = createSignWithToken(t2, accessToken);
+    const devicePath = `/v1.0/devices/${DEVICE_ID}/status`;
+    const sign2 = createSign('GET', devicePath, '', t2, accessToken);
 
     console.log('=== Device Request ===');
     console.log('access_token:', accessToken);
-    console.log('t2:', t2);
     console.log('sign2:', sign2);
 
-    const deviceResp = await fetch(`${BASE_URL}/v1.0/devices/${DEVICE_ID}/status`, {
+    const deviceResp = await fetch(`${BASE_URL}${devicePath}`, {
       method: 'GET',
       headers: {
         'client_id': CLIENT_ID,
@@ -92,11 +94,9 @@ export default async function handler(req, res) {
 
     // Znajdź temperaturę
     let temperature = null;
-    const raw = deviceData.result || [];
-
-    for (const item of raw) {
+    for (const item of (deviceData.result || [])) {
       console.log('Property:', item.code, '=', item.value);
-      if (['temp_current', 'temperature', 'temp', 'va_temperature', 'temp_current_f'].includes(item.code)) {
+      if (['temp_current', 'temperature', 'temp', 'va_temperature'].includes(item.code)) {
         let val = parseFloat(item.value);
         if (!isNaN(val)) {
           temperature = val > 200 ? val / 10 : val;
@@ -104,11 +104,10 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({
+    return res.json({
       success: true,
       temperature,
-      raw,
-      timestamp: new Date().toISOString()
+      raw: deviceData.result
     });
 
   } catch (error) {
