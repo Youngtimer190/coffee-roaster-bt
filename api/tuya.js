@@ -1,4 +1,4 @@
-// Tuya API - oficjalny format podpisu
+// Tuya API - uproszczony podpis
 import crypto from 'crypto';
 
 const CLIENT_ID = 'nwqkpdpm4a7yga445fsm';
@@ -10,66 +10,53 @@ const ENDPOINTS = [
   'https://openapi.tuyaus.com'
 ];
 
-// Oficjalny podpis Tuya (Base64)
-function createSignature(method, path, body, timestamp, accessToken = '') {
-  // SHA256 hash body (pusty string dla GET)
-  const bodyHash = crypto.createHash('sha256').update(body || '').digest('hex');
-
-  // String do podpisu
-  const stringToSign = `${method}\n${bodyHash}\n${path}\n${timestamp}\n${accessToken}`;
-
-  // HMAC-SHA256 i Base64
-  const signature = crypto
-    .createHmac('sha256', CLIENT_SECRET)
-    .update(stringToSign)
-    .digest('base64');
-
-  return signature;
+// Prosty podpis Tuya (hex uppercase)
+function sign(clientId, secret, t, token = '') {
+  // String: clientId + token + t
+  const str = token ? `${clientId}${token}${t}` : `${clientId}${t}`;
+  return crypto.createHmac('sha256', secret).update(str).digest('hex').toUpperCase();
 }
 
 async function getToken(baseUrl) {
   const t = Date.now().toString();
-  const method = 'GET';
-  const path = '/v1.0/token?grant_type=1';
-  const sign = createSignature(method, path, null, t, '');
+  const s = sign(CLIENT_ID, CLIENT_SECRET, t);
 
   console.log(`\n=== ${baseUrl} ===`);
-  console.log('String to sign:', `GET\n${crypto.createHash('sha256').update('').digest('hex')}\n${path}\n${t}\n`);
-  console.log('Sign:', sign);
+  console.log('t:', t);
+  console.log('sign string:', CLIENT_ID + t);
+  console.log('sign:', s);
 
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: method,
+  const url = `${baseUrl}/v1.0/token?grant_type=1`;
+  const resp = await fetch(url, {
     headers: {
       'client_id': CLIENT_ID,
-      'sign': sign,
+      'sign': s,
       't': t,
       'sign_method': 'HMAC-SHA256'
     }
   });
 
-  const data = await response.json();
+  const data = await resp.json();
   console.log('Response:', JSON.stringify(data));
   return data;
 }
 
-async function getDeviceStatus(baseUrl, token) {
+async function getDevice(baseUrl, token) {
   const t = Date.now().toString();
-  const method = 'GET';
-  const path = `/v1.0/devices/${DEVICE_ID}/status`;
-  const sign = createSignature(method, path, null, t, token);
+  const s = sign(CLIENT_ID, CLIENT_SECRET, t, token);
 
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: 'GET',
+  const url = `${baseUrl}/v1.0/devices/${DEVICE_ID}/status`;
+  const resp = await fetch(url, {
     headers: {
       'client_id': CLIENT_ID,
-      'sign': sign,
+      'sign': s,
       't': t,
       'sign_method': 'HMAC-SHA256',
       'access_token': token
     }
   });
 
-  return response.json();
+  return resp.json();
 }
 
 export default async function handler(req, res) {
@@ -77,42 +64,42 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  for (const baseUrl of ENDPOINTS) {
+  let lastError = 'Brak połączenia';
+
+  for (const ep of ENDPOINTS) {
     try {
-      const tokenResp = await getToken(baseUrl);
+      const tr = await getToken(ep);
 
-      if (tokenResp.success && tokenResp.result?.access_token) {
-        const token = tokenResp.result.access_token;
+      if (tr.success && tr.result?.access_token) {
         console.log('Token OK!');
+        const dr = await getDevice(ep, tr.result.access_token);
 
-        const deviceResp = await getDeviceStatus(baseUrl, token);
-
-        if (deviceResp.success) {
+        if (dr.success) {
           let temp = null;
-          for (const item of (deviceResp.result || [])) {
-            console.log('Property:', item.code, '=', item.value);
-            if (['temp_current', 'temperature', 'temp'].includes(item.code)) {
-              temp = parseFloat(item.value);
+          (dr.result || []).forEach(i => {
+            console.log('Prop:', i.code, '=', i.value);
+            if (['temp_current', 'temperature', 'temp', 'va_temperature'].includes(i.code)) {
+              temp = parseFloat(i.value);
               if (temp > 200) temp = temp / 10;
             }
-          }
+          });
 
-          return res.status(200).json({
+          return res.json({
             success: true,
             temperature: temp,
-            raw: deviceResp.result,
-            endpoint: baseUrl
+            raw: dr.result,
+            endpoint: ep
           });
-        } else {
-          console.log('Device error:', deviceResp.msg);
         }
+        lastError = dr.msg || 'Device error';
       } else {
-        console.log('Token error:', tokenResp.msg);
+        lastError = tr.msg || 'Token error';
       }
     } catch (e) {
-      console.error('Exception:', e.message);
+      lastError = e.message;
+      console.error('Error:', e);
     }
   }
 
-  res.status(500).json({ success: false, error: 'Nie udało się połączyć' });
+  res.status(500).json({ success: false, error: lastError });
 }
