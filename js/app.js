@@ -329,7 +329,7 @@ class CoffeeRoasterApp {
     } else {
       title.textContent = 'Nowy profil';
       form.reset();
-      stagesContainer.innerHTML = this.createStageRowHTML(1);
+ stagesContainer.innerHTML = this.createStageRowHTML(1, { temp: this.currentTemp, time: '00:00' });
     }
     this.attachStageListeners();
     modal.classList.add('active');
@@ -368,7 +368,7 @@ class CoffeeRoasterApp {
     const secs = this.stopwatchTime % 60;
     const timeStr = mins.toString().padStart(2, '0') + ':' + secs.toString().padStart(2, '0');
     const newRow = document.createElement('div');
-    newRow.innerHTML = this.createStageRowHTML(currentRows.length + 1, { time: timeStr });
+ newRow.innerHTML = this.createStageRowHTML(currentRows.length + 1, { temp: this.currentTemp, time: timeStr });
     container.appendChild(newRow.firstElementChild);
     this.attachStageListeners();
     container.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'center' });
