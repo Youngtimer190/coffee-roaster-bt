@@ -4,7 +4,7 @@ import crypto from 'crypto';
 const CLIENT_ID = 'ytqmtsavtqt34prahhkc';
 const CLIENT_SECRET = 'd055e6e7a4f04c08be67b00811ba6dc6';
 const DEVICE_ID = 'bf64bef5qnf76lbz';
-const BASE_URL = 'https://openapi.tuyaus.com';
+const BASE_URL = 'https://openapi.tuyaeu.com';
 
 // Podpis wg dokumentacji Tuya v1.0
 function createSign(t) {
