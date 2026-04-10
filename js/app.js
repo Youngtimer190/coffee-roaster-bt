@@ -329,7 +329,7 @@ class CoffeeRoasterApp {
     } else {
       title.textContent = 'Nowy profil';
       form.reset();
- stagesContainer.innerHTML = this.createStageRowHTML(1, { temp: this.currentTemp, time: '00:00' });
+ stagesContainer.innerHTML = this.createStageRowHTML(1, { temp: null, time: '00:00' });
     }
     this.attachStageListeners();
     modal.classList.add('active');
@@ -994,7 +994,17 @@ if (btnText) btnText.textContent = 'Start';
 
   unmakeStopwatchSticky() { if (!this.stopwatchSticky) return; this.stopwatchSticky = false; this.stopwatchEl()?.classList.remove('is-sticky'); this.placeholderEl()?.classList.remove('active'); }
 
-  startStopwatch() { if (this.stopwatchRunning) return; this.stopwatchRunning = true; this.requestWakeLock(); this.stopwatchInterval = setInterval(() => { this.stopwatchTime++; this.updateStopwatchDisplay(); }, 1000); }
+  startStopwatch() {
+if (this.stopwatchRunning) return;
+this.stopwatchRunning = true;
+this.requestWakeLock();
+this.stopwatchInterval = setInterval(() => { this.stopwatchTime++; this.updateStopwatchDisplay(); }, 1000);
+// Podstaw temperaturę do pierwszego etapu jeśli jest pusta
+const firstTempInput = document.querySelector('.stage-row .stage-temp');
+if (firstTempInput && !firstTempInput.value && this.currentTemp !== null) {
+firstTempInput.value = this.currentTemp;
+}
+}
 
   pauseStopwatch() { this.stopwatchRunning = false; if (this.stopwatchInterval) { clearInterval(this.stopwatchInterval); this.stopwatchInterval = null; } this.releaseWakeLock(); this.stopIosWakeLock(); }
 
