@@ -986,7 +986,7 @@ h4 { font-size: 1.125rem; }
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   width: 100%;
   max-width: 500px;
-  max-height: calc(100vh - 100px);
+  max-height: calc(100dvh - 100px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--glass-border);
@@ -2237,6 +2237,19 @@ select {
   .navbar {
     padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
   }
+
+/* iOS PWA safe areas - env() returns 0 in standalone, but notch exists */
+.modal-header {
+padding-top: calc(var(--space-6) + 50px);
+}
+
+.stopwatch.is-sticky {
+padding-top: calc(60px + var(--space-4));
+}
+
+.modal-content {
+padding-top: env(safe-area-inset-top, 0);
+}
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
