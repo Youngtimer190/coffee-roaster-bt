@@ -5,6 +5,8 @@
     "dev": "npx serve -s . -l 3000",
     "start": "npx serve -s . -l 3000"
   },
-  "dependencies": {},
+  "dependencies": {
+    "crypto-js": "^4.2.0"
+  },
   "devDependencies": {}
 }
