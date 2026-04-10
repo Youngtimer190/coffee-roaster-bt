@@ -1351,10 +1351,21 @@ select {
 }
 
 .stopwatch.is-sticky .first-crack-section .btn-primary {
-  width: 100%;
+  flex: 1;
   padding: var(--space-3) var(--space-4);
   font-size: 0.875rem;
   min-height: 44px;
+}
+
+.stopwatch.is-sticky .first-crack-row {
+display: flex;
+align-items: center;
+gap: var(--space-3);
+}
+
+.stopwatch.is-sticky .current-temp {
+font-size: 1rem;
+padding: var(--space-2);
 }
 
 .stopwatch.is-sticky .first-crack-result {
@@ -1392,6 +1403,7 @@ select {
  box-shadow: 0 6px 32px rgba(251, 191, 36, 0.3);
 }
 
+.first-crack-row {display: flex;align-items: center;justify-content: center;gap: var(--space-4);}.current-temp {font-family: var(--font-mono);font-size: 1.25rem;font-weight: 600;color: var(--coffee-cream);background: rgba(251, 191, 36, 0.1);padding: var(--space-2) var(--space-3);border-radius: var(--radius-md);border: 1px solid rgba(251, 191, 36, 0.2);}
 .first-crack-result {
   margin-top: var(--space-3);
   margin-bottom: 0;
