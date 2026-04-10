@@ -250,6 +250,7 @@ class CoffeeRoasterApp {
     });
 
     modal.classList.add('active');
+this.updateStopwatchTemp();
   }
 
   // ===== DASHBOARD =====
@@ -333,6 +334,7 @@ class CoffeeRoasterApp {
     }
     this.attachStageListeners();
     modal.classList.add('active');
+this.updateStopwatchTemp();
   }
 
   closeProfileModal() {
@@ -523,6 +525,7 @@ async saveProfile() {
     else notesEl.style.display = 'none';
     this.activeProfileId = profile.id;
     modal.classList.add('active');
+this.updateStopwatchTemp();
   }
 
   getBeanTypeName(type) { return { 'arabica': 'Arabica', 'robusta': 'Robusta', 'blend': 'Mieszanka' }[type] || 'Arabica'; }
@@ -581,6 +584,7 @@ async saveProfile() {
     document.getElementById('roastingPauseBtn').classList.remove('paused');
     this.roastingPaused = false;
     modal.classList.add('active');
+this.updateStopwatchTemp();
     this.startRoastingTimer();
   }
 
@@ -838,6 +842,7 @@ async saveProfile() {
       modal.querySelector('.rating-value').textContent = 5;
     }
     modal.classList.add('active');
+this.updateStopwatchTemp();
   }
 
   closeBatchModal() { document.getElementById('batchModal').classList.remove('active'); this.editingBatchId = null; }
