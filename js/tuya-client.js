@@ -119,7 +119,14 @@ if (roastingTemp && document.getElementById('roastingModal').classList.contains(
 roastingTemp.textContent = temp.toFixed(1) + '°C';
 }
 
-// Wywołaj callback dla stopera w modalu profilu
+// Aktualizuj temperaturę w stoperze (modal profilu)
+const stopwatchTemp = document.getElementById('stopwatchTemp');
+const profileModal = document.getElementById('profileModal');
+if (stopwatchTemp && profileModal && profileModal.classList.contains('active')) {
+stopwatchTemp.textContent = temp.toFixed(1) + '°C';
+}
+
+// Wywołaj callback
 if (this.onTemperatureUpdate) {
 this.onTemperatureUpdate(temp);
 }
