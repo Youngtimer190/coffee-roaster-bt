@@ -2250,7 +2250,7 @@ padding-top: 120px;
 }
 
 .modal-content {
-padding-top: env(safe-area-inset-top, 0);
+padding-top: 0;
 }
 }
 
