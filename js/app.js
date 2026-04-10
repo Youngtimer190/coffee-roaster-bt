@@ -971,7 +971,7 @@ async saveProfile() {
 
   startStopwatch() { if (this.stopwatchRunning) return; this.stopwatchRunning = true; this.requestWakeLock(); this.stopwatchInterval = setInterval(() => { this.stopwatchTime++; this.updateStopwatchDisplay(); }, 1000); }
 
-  pauseStopwatch() { this.stopwatchRunning = false; if (this.stopwatchInterval) { clearInterval(this.stopwatchInterval); this.stopwatchInterval = null; } this.releaseWakeLock(); this.stopIosWakeLock(); }
+  pauseStopwatch() { this.stopwatchRunning = false; if (this.stopwatchInterval) { clearInterval(this.stopwatchInterval); this.stopwatchInterval = null; } this.unmakeStopwatchSticky(); this.releaseWakeLock(); this.stopIosWakeLock(); }
 
   resetStopwatch() { this.pauseStopwatch(); this.stopwatchTime = 0; this.firstCrackTime = null; this.updateStopwatchDisplay(); this.unmakeStopwatchSticky(); this.releaseWakeLock(); this.stopIosWakeLock(); document.getElementById('firstCrackResult').style.display = 'none'; document.querySelectorAll('.stage-fc').forEach(s => s.remove()); }
 
