@@ -1296,7 +1296,7 @@ select {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   padding: var(--space-4) var(--space-5);
-  padding-top: max(85px, calc(var(--space-6) + env(safe-area-inset-top, 60px)));
+  padding-top: max(100px, calc(var(--space-6) + env(safe-area-inset-top, 70px)));
   box-shadow: var(--shadow-lg);
   animation: slideDown 0.3s var(--ease-out);
   border-radius: 0;
@@ -2240,7 +2240,7 @@ select {
 
 /* iOS PWA safe areas - env() returns 0 in standalone, but notch exists */
 .modal-header {
-padding-top: 50px;
+padding-top: 35px;
 position: relative;
 top: auto;
 }
