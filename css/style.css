@@ -2240,7 +2240,7 @@ select {
 
 /* iOS PWA safe areas - env() returns 0 in standalone, but notch exists */
 .modal-header {
-padding-top: 35px;
+padding-top: 24px !important;
 position: relative;
 top: auto;
 }
