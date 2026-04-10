@@ -974,6 +974,7 @@ if (playIcon) playIcon.style.display = 'inline';
 if (pauseIcon) pauseIcon.style.display = 'none';
 if (btnText) btnText.textContent = 'Start';
 }
+updateStopwatchTemp() {const tempEl = document.getElementById('stopwatchTemp');if (tempEl && this.currentTemp !== null) {tempEl.textContent = this.currentTemp.toFixed(1) + '°C';}}
     this.setupIosWakeLock();
     this.setupStickyStopwatch();
   }
@@ -1160,6 +1161,7 @@ CoffeeRoasterApp.prototype.setupBluetooth = function() {
 
  self.bluetooth.onTemperatureUpdate = function(temp) {
  self.currentTemp = temp;
+self.updateStopwatchTemp();
  };
 
  self.showToast('Termometr połączony!', 'success');
@@ -1189,6 +1191,7 @@ CoffeeRoasterApp.prototype.setupBluetooth = function() {
 
  self.bluetooth.onTemperatureUpdate = function(temp) {
  self.currentTemp = temp;
+self.updateStopwatchTemp();
  };
 
  self.showToast('Połączono!', 'success');
