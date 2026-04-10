@@ -1,7 +1,5 @@
 // Tuya API Endpoint for Vercel Serverless Functions
-// Handles authentication and device status requests
-
-import CryptoJS from 'crypto-js';
+import crypto from 'crypto';
 
 // Configuration
 const TUYA_CONFIG = {
@@ -12,24 +10,28 @@ const TUYA_CONFIG = {
 
 // Tuya API regions
 const REGIONS = [
-  { name: 'EU-West', url: 'https://openapi.tuyaeu.com' },
   { name: 'EU-Central', url: 'https://openapi.tuyaeu.com' },
   { name: 'US', url: 'https://openapi.tuyaus.com' },
   { name: 'India', url: 'https://openapi.tuyain.com' },
   { name: 'China', url: 'https://openapi.tuyacn.com' }
 ];
 
-// Generate Tuya signature (correct algorithm)
+// Generate Tuya signature using Node.js crypto
 function generateSign(method, path, body, timestamp, accessToken = '') {
-  // SHA256 hash of body (empty string for GET requests)
-  const bodyHash = body ? CryptoJS.SHA256(JSON.stringify(body)).toString() : '';
+  // SHA256 hash of body (empty string hex for GET requests)
+  const bodyHash = body
+    ? crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex')
+    : crypto.createHash('sha256').update('').digest('hex');
 
-  // Content to sign: method + '\n' + body_hash + '\n' + path + '\n' + timestamp + '\n' + access_token
+  // Content to sign
   const contentToSign = method + '\n' + bodyHash + '\n' + path + '\n' + timestamp + '\n' + accessToken;
 
-  // HMAC-SHA256 with clientSecret, then Base64
-  const sign = CryptoJS.HmacSHA256(contentToSign, TUYA_CONFIG.clientSecret);
-  return CryptoJS.enc.Base64.stringify(sign);
+  // HMAC-SHA256 with clientSecret, then hex
+  const hmac = crypto.createHmac('sha256', TUYA_CONFIG.clientSecret);
+  hmac.update(contentToSign);
+  const sign = hmac.digest('hex').toUpperCase();
+
+  return sign;
 }
 
 // Try to get token from a specific region
@@ -41,6 +43,7 @@ async function tryGetToken(baseUrl) {
 
   const url = `${baseUrl}${path}`;
   console.log(`Trying ${baseUrl}...`);
+  console.log('Sign:', sign);
 
   const response = await fetch(url, {
     method: 'GET',
@@ -53,7 +56,7 @@ async function tryGetToken(baseUrl) {
   });
 
   const data = await response.json();
-  console.log(`Response from ${baseUrl}:`, data);
+  console.log(`Response from ${baseUrl}:`, JSON.stringify(data));
 
   return { baseUrl, data };
 }
@@ -67,14 +70,13 @@ async function getAccessToken() {
       const result = await tryGetToken(region.url);
 
       if (result.data.success) {
-        console.log(`Success with region: ${region.name} (${region.url})`);
+        console.log(`Success with region: ${region.name}`);
         return {
           accessToken: result.data.result.access_token,
           baseUrl: region.url
         };
       } else {
         lastError = result.data.msg;
-        console.log(`Failed with ${region.name}: ${result.data.msg}`);
       }
     } catch (error) {
       lastError = error.message;
@@ -82,7 +84,7 @@ async function getAccessToken() {
     }
   }
 
-  throw new Error(`Could not connect to any Tuya region. Last error: ${lastError}`);
+  throw new Error(`All regions failed. Last error: ${lastError}`);
 }
 
 // Get device status
@@ -106,7 +108,7 @@ async function getDeviceStatus(accessToken, baseUrl) {
   const data = await response.json();
 
   if (!data.success) {
-    throw new Error(`Tuya device error: ${data.msg}`);
+    throw new Error(`Device error: ${data.msg}`);
   }
 
   return data.result;
@@ -114,7 +116,6 @@ async function getDeviceStatus(accessToken, baseUrl) {
 
 // Main handler
 export default async function handler(req, res) {
-  // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -128,29 +129,16 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Get access token (tries all regions)
     const tokenData = await getAccessToken();
-    const accessToken = tokenData.accessToken;
-    const baseUrl = tokenData.baseUrl;
+    const status = await getDeviceStatus(tokenData.accessToken, tokenData.baseUrl);
 
-    console.log('Got token, fetching device status...');
-
-    // Get device status
-    const status = await getDeviceStatus(accessToken, baseUrl);
-
-    // Find temperature value
     let temperature = null;
-
     for (const item of status) {
-      console.log('Device property:', item.code, '=', item.value);
-
+      console.log('Property:', item.code, '=', item.value);
       if (item.code === 'temp_current' ||
           item.code === 'temp_current_f' ||
           item.code === 'temperature' ||
-          item.code === 'temp' ||
-          item.code === 'current_temperature' ||
-          item.code === 'tem_alarm' ||
-          item.code === 'temp_correction') {
+          item.code === 'temp') {
         const value = parseFloat(item.value);
         if (!isNaN(value)) {
           temperature = value > 200 ? value / 10 : value;
@@ -160,14 +148,14 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       success: true,
-      temperature: temperature,
+      temperature,
       raw: status,
       timestamp: new Date().toISOString(),
-      region: baseUrl
+      region: tokenData.baseUrl
     });
 
   } catch (error) {
-    console.error('Tuya API error:', error);
+    console.error('Error:', error);
     return res.status(500).json({
       success: false,
       error: error.message
