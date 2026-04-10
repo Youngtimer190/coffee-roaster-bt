@@ -341,6 +341,7 @@ class CoffeeRoasterApp {
     if (this.stopwatchInterval) { clearInterval(this.stopwatchInterval); this.stopwatchInterval = null; }
     this.stopwatchTime = 0; this.stopwatchRunning = false; this.stopwatchSticky = false; this.firstCrackTime = null;
     this.updateStopwatchDisplay();
+this.updateToggleBtn();
     this.releaseWakeLock(); this.stopIosWakeLock();
     const stopwatchEl = this.stopwatchEl(); const placeholderEl = this.placeholderEl();
     if (stopwatchEl) stopwatchEl.classList.remove('is-sticky');
@@ -943,12 +944,36 @@ async saveProfile() {
     this.stopwatchTime = 0;
     this.stopwatchRunning = false;
     this.stopwatchSticky = false;
-    const startBtn = document.getElementById('stopwatchStart');
-    const pauseBtn = document.getElementById('stopwatchPause');
-    const resetBtn = document.getElementById('stopwatchReset');
-    if (startBtn) startBtn.addEventListener('click', (e) => { this.startIosWakeLockDirectly(); this.startStopwatch(); });
-    if (pauseBtn) pauseBtn.addEventListener('click', () => this.pauseStopwatch());
-    if (resetBtn) resetBtn.addEventListener('click', () => this.resetStopwatch());
+    const toggleBtn = document.getElementById('stopwatchToggle');
+const resetBtn = document.getElementById('stopwatchReset');
+if (toggleBtn) toggleBtn.addEventListener('click', () => { this.startIosWakeLockDirectly(); this.toggleStopwatch(); });
+if (resetBtn) resetBtn.addEventListener('click', () => this.resetStopwatch());
+}
+
+toggleStopwatch() {
+if (this.stopwatchRunning) {
+this.pauseStopwatch();
+} else {
+this.startStopwatch();
+}
+this.updateToggleBtn();
+}
+
+updateToggleBtn() {
+const btn = document.getElementById('stopwatchToggle');
+const playIcon = btn?.querySelector('.icon-play');
+const pauseIcon = btn?.querySelector('.icon-pause');
+const btnText = btn?.querySelector('.btn-text');
+if (!btn) return;
+if (this.stopwatchRunning) {
+if (playIcon) playIcon.style.display = 'none';
+if (pauseIcon) pauseIcon.style.display = 'inline';
+if (btnText) btnText.textContent = 'Stop';
+} else {
+if (playIcon) playIcon.style.display = 'inline';
+if (pauseIcon) pauseIcon.style.display = 'none';
+if (btnText) btnText.textContent = 'Start';
+}
     this.setupIosWakeLock();
     this.setupStickyStopwatch();
   }
@@ -973,7 +998,7 @@ async saveProfile() {
 
   pauseStopwatch() { this.stopwatchRunning = false; if (this.stopwatchInterval) { clearInterval(this.stopwatchInterval); this.stopwatchInterval = null; } this.releaseWakeLock(); this.stopIosWakeLock(); }
 
-  resetStopwatch() { this.pauseStopwatch(); this.stopwatchTime = 0; this.firstCrackTime = null; this.updateStopwatchDisplay(); this.unmakeStopwatchSticky(); this.releaseWakeLock(); this.stopIosWakeLock(); document.getElementById('firstCrackResult').style.display = 'none'; document.querySelectorAll('.stage-fc').forEach(s => s.remove()); }
+  resetStopwatch() { this.pauseStopwatch(); this.stopwatchTime = 0; this.firstCrackTime = null; this.updateStopwatchDisplay(); this.unmakeStopwatchSticky(); this.releaseWakeLock(); this.stopIosWakeLock(); document.getElementById('firstCrackResult').style.display = 'none'; document.querySelectorAll('.stage-fc').forEach(s => s.remove()); this.updateToggleBtn(); }
 
   stopwatchEl() { return document.getElementById('stopwatch'); }
 
