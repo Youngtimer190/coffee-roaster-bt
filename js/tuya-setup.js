@@ -76,7 +76,7 @@
                         widget?.classList.remove('bt-connecting');
 
                         // Rozpocznij polling
-                        self.bluetooth.startPolling(2000);
+                        self.bluetooth.startPolling(500);
 
                         self.bluetooth.onTemperatureUpdate = function(temp) {
                             self.currentTemp = temp;
