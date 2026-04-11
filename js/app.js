@@ -1046,7 +1046,7 @@ firstTempInput.value = this.currentTemp;
     const mins = Math.floor(this.stopwatchTime / 60);
     const secs = this.stopwatchTime % 60;
     const timeStr = mins.toString().padStart(2, '0') + ':' + secs.toString().padStart(2, '0');
- const tempValue = this.currentTemp !== null ? this.currentTemp.toFixed(1) : '';
+ const tempValue = this.currentTemp !== null ? Math.round(this.currentTemp) : '';
     const fcStage = document.createElement('div');
     fcStage.className = 'stage-row stage-fc';
     fcStage.dataset.stage = 'fc';
