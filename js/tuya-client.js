@@ -17,13 +17,18 @@ console.log('TuyaThermometer: Moduł zainicjalizowany');
 // Sprawdź połączenie i pobierz temperaturę
 async checkConnection() {
 try {
+const startTime = Date.now();
 const response = await fetch(this.apiEndpoint);
+const latency = Date.now() - startTime;
 const data = await response.json();
 
 if (data.success) {
 this.connected = true;
 this.temperature = data.temperature;
 this.lastUpdate = new Date(data.timestamp);
+
+// Aktualizuj status w UI
+this.updateStatus('connected', latency, data.tokenCached);
 
 if (this.onTemperatureUpdate && data.temperature !== null) {
 this.onTemperatureUpdate(data.temperature);
@@ -32,10 +37,11 @@ this.onTemperatureUpdate(data.temperature);
 return {
 connected: true,
 temperature: data.temperature,
-raw: data.raw
+latency: latency
 };
 } else {
 this.connected = false;
+this.updateStatus('error', null, null, data.error);
 console.error('Tuya API error:', data.error);
 return {
 connected: false,
@@ -45,6 +51,7 @@ error: data.error
 } catch (error) {
 console.error('Tuya connection error:', error);
 this.connected = false;
+this.updateStatus('disconnected', null, null, error.message);
 return {
 connected: false,
 error: error.message
@@ -58,8 +65,8 @@ const result = await this.checkConnection();
 return result.temperature;
 }
 
-// Rozpocznij automatyczne odświeżanie (co 2 sekundy)
-startPolling(intervalMs = 2000) {
+// Rozpocznij automatyczne odświeżanie (domyślnie co 500ms)
+startPolling(intervalMs = 500) {
 if (this.pollingInterval) {
 this.stopPolling();
 }
@@ -85,6 +92,28 @@ if (this.pollingInterval) {
 clearInterval(this.pollingInterval);
 this.pollingInterval = null;
 console.log('TuyaThermometer: Zatrzymano polling');
+}
+}
+
+// Aktualizuj status połączenia w UI
+updateStatus(status, latency, tokenCached, error = null) {
+const statusEl = document.getElementById('btStatus');
+if (!statusEl) return;
+
+const statusMap = {
+connected: { text: `Połączono ${latency}ms`, class: 'status-connected' },
+disconnected: { text: 'Rozłączono', class: 'status-disconnected' },
+error: { text: `Błąd: ${error || '?'}`, class: 'status-error' }
+};
+
+const info = statusMap[status] || statusMap.disconnected;
+statusEl.textContent = info.text;
+statusEl.className = `bt-status ${info.class}`;
+
+// Dodaj wskaźnik cache tokena
+if (status === 'connected' && tokenCached !== undefined) {
+const cacheIndicator = tokenCached ? '💾' : '🔄';
+statusEl.textContent = info.text + ' ' + cacheIndicator;
 }
 }
 
