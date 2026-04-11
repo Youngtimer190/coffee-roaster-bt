@@ -1,4 +1,4 @@
-// Tuya API - dokładnie wg dokumentacji
+// Tuya API z token cache i retry logic
 import crypto from 'crypto';
 
 const CLIENT_ID = 'ytqmtsavtqt34prahhkc';
@@ -9,77 +9,88 @@ const BASE_URL = 'https://openapi.tuyaeu.com';
 // SHA256 pustego stringa
 const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
+// Token cache - pamięć między requestami
+let tokenCache = {
+  accessToken: null,
+  expiresAt: 0 // Unix timestamp w ms
+};
+
+// Funkcja do generowania podpisu
+function generateSign(clientId, secret, t, nonce, stringToSign, token = '') {
+  const str = token ? clientId + token + t + nonce + stringToSign : clientId + t + nonce + stringToSign;
+  return crypto.createHmac('sha256', secret).update(str).digest('hex').toUpperCase();
+}
+
+// Retry z exponential backoff
+async function retryFetch(url, options, maxRetries = 3) {
+  let lastError;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const resp = await fetch(url, options);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      if (data.success) return data;
+      lastError = new Error(`Tuya error: ${data.msg}`);
+    } catch (e) {
+      lastError = e;
+      console.log(`Retry ${i + 1}/${maxRetries}:`, e.message);
+      if (i < maxRetries - 1) {
+        await new Promise(r => setTimeout(r, 100 * Math.pow(2, i))); // 100ms, 200ms, 400ms
+      }
+    }
+  }
+  throw lastError;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const t = Date.now().toString();
-    const nonce = crypto.randomUUID(); // UUID
-    const path = '/v1.0/token?grant_type=1';
+    const now = Date.now();
+    let accessToken;
 
-    // stringToSign = Method + "\n" + SHA256(body) + "\n" + headers + "\n" + URL
-    // Dla GET bez custom headers:
-    const stringToSign = `GET\n${EMPTY_SHA256}\n\n${path}`;
+    // Sprawdź czy mamy ważny token w cache (z marginesem 5 minut)
+    if (tokenCache.accessToken && tokenCache.expiresAt > now + 5 * 60 * 1000) {
+      console.log('Używam token z cache, wygasa za', Math.round((tokenCache.expiresAt - now) / 1000), 's');
+      accessToken = tokenCache.accessToken;
+    } else {
+      // Pobierz nowy token
+      console.log('Pobieram nowy token...');
+      const t = now.toString();
+      const nonce = crypto.randomUUID();
+      const path = '/v1.0/token?grant_type=1';
+      const stringToSign = `GET\n${EMPTY_SHA256}\n\n${path}`;
+      const sign = generateSign(CLIENT_ID, CLIENT_SECRET, t, nonce, stringToSign);
 
-    // str = client_id + t + nonce + stringToSign
-    const str = CLIENT_ID + t + nonce + stringToSign;
-
-    // sign = HMAC-SHA256(str, secret).toUpperCase()
-    const sign = crypto.createHmac('sha256', CLIENT_SECRET).update(str).digest('hex').toUpperCase();
-
-    console.log('=== Token Request ===');
-    console.log('t:', t);
-    console.log('nonce:', nonce);
-    console.log('path:', path);
-    console.log('stringToSign:', JSON.stringify(stringToSign));
-    console.log('str:', str);
-    console.log('sign:', sign);
-
-    const tokenResp = await fetch(`${BASE_URL}${path}`, {
-      method: 'GET',
-      headers: {
-        'client_id': CLIENT_ID,
-        'sign': sign,
-        't': t,
-        'nonce': nonce,
-        'sign_method': 'HMAC-SHA256'
-      }
-    });
-
-    const tokenData = await tokenResp.json();
-    console.log('Response:', JSON.stringify(tokenData));
-
-    if (!tokenData.success) {
-      return res.status(500).json({
-        success: false,
-        error: `Token ${tokenData.code}: ${tokenData.msg}`,
-        debug: { t, nonce, str, sign }
+      const tokenData = await retryFetch(`${BASE_URL}${path}`, {
+        method: 'GET',
+        headers: {
+          'client_id': CLIENT_ID,
+          'sign': sign,
+          't': t,
+          'nonce': nonce,
+          'sign_method': 'HMAC-SHA256'
+        }
       });
+
+      accessToken = tokenData.result.access_token;
+      const expireTime = tokenData.result.expire_time || 7200; // domyślnie 2h
+      tokenCache = {
+        accessToken,
+        expiresAt: now + expireTime * 1000
+      };
+      console.log('Token zapisany, ważny przez', expireTime, 's');
     }
-
-    const accessToken = tokenData.result.access_token;
-    console.log('Token OK');
-
-    // Device request
+    // Device request z retry
     const t2 = Date.now().toString();
     const nonce2 = crypto.randomUUID();
     const devicePath = `/v1.0/devices/${DEVICE_ID}/status`;
-
-    // stringToSign dla general API
     const stringToSign2 = `GET\n${EMPTY_SHA256}\n\n${devicePath}`;
+    const sign2 = generateSign(CLIENT_ID, CLIENT_SECRET, t2, nonce2, stringToSign2, accessToken);
 
-    // str = client_id + access_token + t + nonce + stringToSign
-    const str2 = CLIENT_ID + accessToken + t2 + nonce2 + stringToSign2;
-    const sign2 = crypto.createHmac('sha256', CLIENT_SECRET).update(str2).digest('hex').toUpperCase();
-
-    console.log('=== Device Request ===');
-    console.log('stringToSign2:', JSON.stringify(stringToSign2));
-    console.log('str2:', str2);
-    console.log('sign2:', sign2);
-
-    const deviceResp = await fetch(`${BASE_URL}${devicePath}`, {
+    const deviceData = await retryFetch(`${BASE_URL}${devicePath}`, {
       method: 'GET',
       headers: {
         'client_id': CLIENT_ID,
@@ -91,17 +102,9 @@ export default async function handler(req, res) {
       }
     });
 
-    const deviceData = await deviceResp.json();
-    console.log('Device response:', JSON.stringify(deviceData));
-
-    if (!deviceData.success) {
-      return res.status(500).json({ success: false, error: `Device: ${deviceData.msg}` });
-    }
-
     // Find temperature
     let temperature = null;
     for (const item of (deviceData.result || [])) {
-      console.log('Property:', item.code, '=', item.value);
       if (['temp_current', 'temperature', 'temp', 'va_temperature'].includes(item.code)) {
         let val = parseFloat(item.value);
         if (!isNaN(val)) {
@@ -113,7 +116,8 @@ export default async function handler(req, res) {
     return res.json({
       success: true,
       temperature,
-      raw: deviceData.result
+      timestamp: Date.now(),
+      tokenCached: tokenCache.expiresAt > Date.now()
     });
 
   } catch (error) {
