@@ -1046,13 +1046,14 @@ firstTempInput.value = this.currentTemp;
     const mins = Math.floor(this.stopwatchTime / 60);
     const secs = this.stopwatchTime % 60;
     const timeStr = mins.toString().padStart(2, '0') + ':' + secs.toString().padStart(2, '0');
+ const tempValue = this.currentTemp !== null ? this.currentTemp.toFixed(1) : '';
     const fcStage = document.createElement('div');
     fcStage.className = 'stage-row stage-fc';
     fcStage.dataset.stage = 'fc';
     fcStage.innerHTML = `<button type="button" class="btn-remove-stage">×</button>
     <div class="stage-header"><span class="stage-num stage-num-fc">FC</span></div>
     <div class="stage-fields">
-    <div class="stage-field"><label class="stage-label">Temp.</label><input type="number" class="stage-temp" placeholder="°C" min="0" max="300"></div>
+    <div class="stage-field"><label class="stage-label">Temp.</label><input type="number" class="stage-temp" placeholder="°C" min="0" max="300" value="${tempValue}"></div>
     <div class="stage-field"><label class="stage-label">Czas</label><input type="text" class="stage-time" placeholder="mm:ss" value="${timeStr}"></div>
     <div class="stage-field stage-field-note"><label class="stage-label">Notatka</label><input type="text" class="stage-note" placeholder="np. first crack" value="First Crack"></div>
     </div>`;
