@@ -341,7 +341,7 @@ this.updateStopwatchTemp();
     document.getElementById('profileModal').classList.remove('active');
     this.editingProfileId = null;
     if (this.stopwatchInterval) { clearInterval(this.stopwatchInterval); this.stopwatchInterval = null; }
-    this.stopwatchTime = 0; this.stopwatchRunning = false; this.stopwatchSticky = false; this.firstCrackTime = null;
+    this.stopwatchTime = 0; this.stopwatchRunning = false; this.stopwatchSticky = false; this.autoStageInterval = null; this.autoStageCounter = 0; this.firstCrackTime = null;
     this.updateStopwatchDisplay();
 this.updateToggleBtn();
     this.releaseWakeLock(); this.stopIosWakeLock();
@@ -949,7 +949,9 @@ this.updateStopwatchTemp();
     this.stopwatchTime = 0;
     this.stopwatchRunning = false;
     this.stopwatchSticky = false;
-    const toggleBtn = document.getElementById('stopwatchToggle');
+ this.autoStageInterval = null;
+ this.autoStageCounter = 0;
+ const toggleBtn = document.getElementById('stopwatchToggle');
 const resetBtn = document.getElementById('stopwatchReset');
 if (toggleBtn) toggleBtn.addEventListener('click', () => { this.startIosWakeLockDirectly(); this.toggleStopwatch(); });
 if (resetBtn) resetBtn.addEventListener('click', () => this.resetStopwatch());
@@ -1007,21 +1009,11 @@ else { if (modalContent.scrollTop < 50 || placeholder.getBoundingClientRect().to
 
   unmakeStopwatchSticky() { if (!this.stopwatchSticky) return; this.stopwatchSticky = false; this.stopwatchEl()?.classList.remove('is-sticky'); this.placeholderEl()?.classList.remove('active'); }
 
-  startStopwatch() {
-if (this.stopwatchRunning) return;
-this.stopwatchRunning = true;
-this.requestWakeLock();
-this.stopwatchInterval = setInterval(() => { this.stopwatchTime++; this.updateStopwatchDisplay(); }, 1000);
-// Podstaw temperaturę do pierwszego etapu jeśli jest pusta
-const firstTempInput = document.querySelector('.stage-row .stage-temp');
-if (firstTempInput && !firstTempInput.value && this.currentTemp !== null) {
-firstTempInput.value = this.currentTemp;
-}
-}
+startStopwatch() { if (this.stopwatchRunning) return; this.stopwatchRunning = true; this.requestWakeLock(); this.stopwatchInterval = setInterval(() => { this.stopwatchTime++; this.updateStopwatchDisplay(); }, 1000); const firstTempInput = document.querySelector('.stage-row .stage-temp'); const firstTimeInput = document.querySelector('.stage-row .stage-time'); if (firstTempInput && !firstTempInput.value && this.currentTemp !== null) { firstTempInput.value = this.currentTemp; } if (firstTimeInput) { firstTimeInput.value = '00:00'; } this.autoStageCounter = 0; this.autoStageInterval = setInterval(() => { this.autoStageCounter++; if (this.autoStageCounter >= 30) { this.autoStageCounter = 0; this.addAutoStage(); } }, 1000); }
+	addAutoStage() { const container = document.getElementById('roastStages'); const currentRows = container.querySelectorAll('.stage-row'); const mins = Math.floor(this.stopwatchTime / 60); const secs = this.stopwatchTime % 60; const timeStr = mins.toString().padStart(2, '0') + ':' + secs.toString().padStart(2, '0'); const tempValue = this.currentTemp !== null ? Math.round(this.currentTemp) : ''; const newStage = document.createElement('div'); newStage.className = 'stage-row'; newStage.dataset.stage = currentRows.length + 1; newStage.innerHTML = `<button type="button" class="btn-remove-stage">×</button> <div class="stage-header"><span class="stage-num">${currentRows.length + 1}</span></div> <div class="stage-fields"> <div class="stage-field"><label class="stage-label">Temp.</label><input type="number" class="stage-temp" placeholder="°C" min="0" max="300" value="${tempValue}"></div> <div class="stage-field"><label class="stage-label">Czas</label><input type="text" class="stage-time" placeholder="mm:ss" value="${timeStr}"></div> <div class="stage-field stage-field-note"><label class="stage-label">Notatka</label><input type="text" class="stage-note" placeholder="np. first crack" value=""></div> </div>`; container.appendChild(newStage); this.attachStageListeners(); newStage.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+ pauseStopwatch() { this.stopwatchRunning = false; if (this.stopwatchInterval) { clearInterval(this.stopwatchInterval); this.stopwatchInterval = null; } if (this.autoStageInterval) { clearInterval(this.autoStageInterval); this.autoStageInterval = null; } this.releaseWakeLock(); this.stopIosWakeLock(); }
 
-  pauseStopwatch() { this.stopwatchRunning = false; if (this.stopwatchInterval) { clearInterval(this.stopwatchInterval); this.stopwatchInterval = null; } this.releaseWakeLock(); this.stopIosWakeLock(); }
-
-  resetStopwatch() { this.pauseStopwatch(); this.stopwatchTime = 0; this.firstCrackTime = null; this.updateStopwatchDisplay(); this.unmakeStopwatchSticky(); this.releaseWakeLock(); this.stopIosWakeLock(); document.getElementById('firstCrackResult').style.display = 'none'; document.querySelectorAll('.stage-fc').forEach(s => s.remove()); this.updateToggleBtn(); }
+  resetStopwatch() { this.pauseStopwatch(); this.stopwatchTime = 0; this.firstCrackTime = null; this.autoStageCounter = 0; this.updateStopwatchDisplay(); this.unmakeStopwatchSticky(); this.releaseWakeLock(); this.stopIosWakeLock(); document.getElementById('firstCrackResult').style.display = 'none'; document.querySelectorAll('.stage-fc').forEach(s => s.remove()); this.updateToggleBtn(); }
 
   stopwatchEl() { return document.getElementById('stopwatch'); }
 
